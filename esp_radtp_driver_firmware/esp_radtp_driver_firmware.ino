@@ -55,12 +55,16 @@ void agent_handshake(WiFiClient &drv, uint32_t &id){
 }
 
 //=================================================================
+#define CMD_BUF_LEN        64
 
-#define TO_AGENT_CONNECTED 1
+#define TO_AGENT_CONNECTED 1  //  1
+#define TIME_TO_HEAD       2  //  1 << 1
+#define TIME_TO_BODY       4  //  1 << 2
 
 //=================================================================
 
 WiFiClient drv_cmd;
+uint8_t cmd_buf [CMD_BUF_LEN];
 void process_drv_cmd (){
   #ifdef DEBUG
     static uint32_t entrance = 0;
@@ -80,10 +84,54 @@ void process_drv_cmd (){
    if (drv_cmd.connected() && !(is & TO_AGENT_CONNECTED)) {
     agent_handshake(drv_cmd, id);
     is |= TO_AGENT_CONNECTED;
+    is |= TIME_TO_HEAD;
   }  
 
-   if (drv_cmd.connected() && (is & TO_AGENT_CONNECTED)) {
- /*    if (drv_cmd.available()) {
+  if (drv_cmd.connected() && (is & TO_AGENT_CONNECTED)) {
+    uint32_t c = 0;
+    while (drv_cmd.available()) {
+      
+      cmd_buf[c++] = drv_cmd.read();
+
+      if (!drv_cmd.available()){
+
+        #ifdef DEBUG
+          for (uint32_t i = 0; i < c; i++){
+            Serial.print(cmd_buf[i]);
+            Serial.print(" ");            
+          }
+        #endif
+        
+        if ( is & TIME_TO_HEAD ) {
+          uint32_t wc = 0;
+          for (char i = 0; i < 4; i++){
+            wc += (cmd_buf[i] << (8 * i));
+          }
+          if (wc > 0){
+            is &= ~TIME_TO_HEAD;
+            is |= TIME_TO_BODY;
+          }
+            
+          #ifdef DEBUG
+            Serial.print("Awaiting : ");
+            Serial.println(wc);
+          #endif
+        }else if ( is & TIME_TO_BODY ) {    
+          #ifdef DEBUG
+            Serial.print("It was body by len: ");
+            Serial.println(c);
+          #endif
+          is |= TIME_TO_HEAD;
+          is &= ~TIME_TO_BODY;
+        }
+
+        #ifdef DEBUG
+          Serial.print("Entarnce to process_drv_cmd = ");
+          Serial.println(entrance);
+        #endif
+      }
+    }
+/*    if (drv_cmd.available()) {
       uint32_t cnt;
       for (uint8_t i = 0; i < 4; i++)
         ((char*)(&cnt))[i] = drv_cmd.read();
@@ -100,18 +148,6 @@ void process_drv_cmd (){
       Serial.println();       
      }
      */
-     while (drv_cmd.available()) {
-          
-        Serial.print(drv_cmd.read());
-        Serial.print(" ");
-        if (!drv_cmd.available()){
-          Serial.println();
-          #ifdef DEBUG
-            Serial.print("Entarnce to process_drv_cmd = ");
-            Serial.println(entrance);
-          #endif
-        }
-     }
 
   }  
 
