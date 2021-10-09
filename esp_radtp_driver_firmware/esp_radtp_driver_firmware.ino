@@ -53,16 +53,20 @@ void agent_handshake(WiFiClient &drv, uint32_t &id){
 
 //=================================================================
 
+#define TO_AGENT_CONNECTED 1
+
+//=================================================================
+
 WiFiClient drv_cmd;
 void process_drv_cmd (){
   #ifdef DEBUG
     static uint32_t entrance = 0;
     entrance++;
   #endif
-  static bool to_agent_for_cmd_connected = false;
+  static uint32_t is = 0;
   if (!drv_cmd.connected()) {
     drv_cmd.stop();
-    to_agent_for_cmd_connected = false;
+    is &= ^TO_AGENT_CONNECTED;
   }
 
   while (!drv_cmd.connected()) {
@@ -70,12 +74,12 @@ void process_drv_cmd (){
     delay(WAIT_DELAY_FOR_RE_CONNECT_ms);
   }
 
-   if (drv_cmd.connected() && to_agent_for_cmd_connected == false) {
+   if (drv_cmd.connected() && ! (is | TO_AGENT_CONNECTED)) {
     agent_handshake(drv_cmd, id);
-    to_agent_for_cmd_connected = true;
+    is |= TO_AGENT_CONNECTED;
   }  
 
-   if (drv_cmd.connected() && to_agent_for_cmd_connected) {
+   if (drv_cmd.connected() && is | TO_AGENT_CONNECTED) {
  /*    if (drv_cmd.available()) {
       uint32_t cnt;
       for (uint8_t i = 0; i < 4; i++)
