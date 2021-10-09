@@ -1,4 +1,5 @@
 #include <avr/pgmspace.h>
+#include "radtp_packet_defines.h"
 #include "ESP8266WiFi.h"
 
 #define DEBUG
@@ -44,16 +45,18 @@ void agent_handshake(WiFiClient &drv, uint32_t &id){
     #ifdef DEBUG
       Serial.println(F("Handshaking..."));
     #endif
-    for (uint8_t i = 0; i < 4; i++)
+    while (!drv.available());
+    for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
       drv.read();
       
     void * id_p = &id;  
-    for (uint8_t i = 0; i < 4; i++)
+    for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
       drv.write(((char*)id_p)[i]);
     
-    for (uint8_t i = 0; i < 4; i++)
+    while (!drv.available());
+    for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
       drv.read();
-    for (uint8_t i = 0; i < 4; i++)
+    for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
       drv.write(0);  
 }
 
@@ -61,19 +64,29 @@ void agent_handshake(WiFiClient &drv, uint32_t &id){
 #define CMD_BUF_LEN        64
 
 #define TO_AGENT_CONNECTED 1  //  1
-#define TIME_TO_HEAD       2  //  1 << 1
-#define TIME_TO_BODY       4  //  1 << 2
+#define HEAD_CAME_BEFORE   2  //  1 << 1
+
 
 //=================================================================
 
 WiFiClient drv_cmd;
 uint8_t cmd_buf [CMD_BUF_LEN];
+
+uint32_t get_wc_from_cmd_buf(){
+  uint32_t wc = 0;
+  for (uint8_t i = 0; i < PKT_HEAD_LEN; i++){
+    wc += (cmd_buf[i] << (8 * i));
+  }         
+  return wc;  
+}
+
 void process_drv_cmd (){
   #ifdef DEBUG
     static uint32_t entrance = 0;
     entrance++;
   #endif
   static uint32_t is = 0;
+  static uint32_t wc = 0;
   if (!drv_cmd.connected()) {
     drv_cmd.stop();
     is &= ~TO_AGENT_CONNECTED;
@@ -87,7 +100,6 @@ void process_drv_cmd (){
    if (drv_cmd.connected() && !(is & TO_AGENT_CONNECTED)) {
     agent_handshake(drv_cmd, id);
     is |= TO_AGENT_CONNECTED;
-    is |= TIME_TO_HEAD;
   }  
 
   if (drv_cmd.connected() && (is & TO_AGENT_CONNECTED)) {
@@ -105,37 +117,50 @@ void process_drv_cmd (){
           }
         #endif
         
-        if ( is & TIME_TO_HEAD ) {
-          uint32_t wc = 0;
-          for (uint8_t i = 0; i < 4; i++){
-            wc += (cmd_buf[i] << (8 * i));
-          }
-          if (wc > 0){
-            is &= ~TIME_TO_HEAD;
-            is |= TIME_TO_BODY;
-          }
-            
+        if ( c == PKT_HEAD_LEN ) {
+          wc = get_wc_from_cmd_buf();
+		  is |= HEAD_CAME_BEFORE;
           #ifdef DEBUG
-            Serial.print("Awaiting : ");
+            Serial.print("HEAD ONLY : Awaiting : ");
             Serial.println(wc);
           #endif
-        }else if ( is & TIME_TO_BODY ) {    
+        }else if ( c > PKT_HEAD_LEN) {
+		  	
+		  if (is & HEAD_CAME_BEFORE) {
+			c += PKT_HEAD_LEN;
+		  }else{			
+            wc = get_wc_from_cmd_buf();
+		  }
+		  
+          if ( c != wc + PKT_HEAD_LEN ) {
+            #ifdef DEBUG
+              Serial.println("Bad Packet!!!");
+            #endif  
+            wc = 0;		
+            is &= ~HEAD_CAME_BEFORE;			
+            return;			  
+          }
+
           #ifdef DEBUG
-            Serial.print("It was body by len: ");
+            Serial.print("FULL PACKET. Len : ");
             Serial.println(c);
           #endif
-          
-          if (cmd_buf[0] == 254){
+
+		  uint32_t pos = 0;
+		  if ( ! (is & HEAD_CAME_BEFORE) ){
+			  pos = PKT_TYPE_POSITION;
+		  }
+   		  is &= ~HEAD_CAME_BEFORE;
+
+          if (cmd_buf[pos] == 254){
             #ifdef DEBUG
               Serial.println("It is KEEP_ALIVE");
             #endif
             g_is |= KEEP_ALIVE_CAME;
+			return;
           }
-            
-          is |= TIME_TO_HEAD;
-          is &= ~TIME_TO_BODY;
-        }
-
+		}
+		
         #ifdef DEBUG
           Serial.print("Entarnce to process_drv_cmd = ");
           Serial.println(entrance);
