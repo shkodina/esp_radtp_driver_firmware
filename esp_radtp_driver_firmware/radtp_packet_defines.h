@@ -5,4 +5,27 @@
 
 #define PKT_TYPE_POSITION 4
 
+#define PKT_ATTR_CODE_KKS         1    //  next byte contain the length of current KKS
+#define PKT_ATTR_CODE_TIMESTAMP   2
+#define PKT_ATTR_CODE_TIMESTAMP_L   4  //  length of timestamp
+#define PKT_ATTR_CODE_FValue      3    //  float
+#define PKT_ATTR_CODE_FValue_L      4  //  length of float
+#define PKT_ATTR_CODE_DValue      4    //  double
+#define PKT_ATTR_CODE_DValue_L      8  //  length of double
+#define PKT_ATTR_CODE_BValue      5    //  byte
+#define PKT_ATTR_CODE_BValue_L      1  //  length of byte
+#define PKT_ATTR_CODE_WValue      6    //  short (word)
+#define PKT_ATTR_CODE_WValue_L      2  //  length of short
+#define PKT_ATTR_CODE_LValue      7    //  int 
+#define PKT_ATTR_CODE_LValue_L      4  //  length of int
+#define PKT_ATTR_CODE_SValue      8    //  string //  next byte contain the length of current string [ 1 - 255 ]
+#define PKT_ATTR_CODE_BLBValue    9    //  blob   //  next byte contain the length of current blob   [ 1 - 65535 ]
+#define PKT_ATTR_CODE_ALARM       10   //  alarm (number of excided threshold)
+#define PKT_ATTR_CODE_ALARM_L       1  //  length of alarm
+#define PKT_ATTR_CODE_EVENT       11   //  cmd or event code (status / state)
+#define PKT_ATTR_CODE_EVENT_L       2  //  length of event
+#define PKT_ATTR_CODE_QUALITY     12   //  quality
+#define PKT_ATTR_CODE_QUALITY_L     1  //  length of quality
+
+
 #endif
