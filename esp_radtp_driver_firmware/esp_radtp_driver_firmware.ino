@@ -1,10 +1,11 @@
+#include <avr/pgmspace.h>
 #include "ESP8266WiFi.h"
 
-#define WAIT_DELAY_FOR_RE_CONNECT_ms 5000
-const char *ssid     = "Radico";
-const char *password = "Radiation Control";
+#define WAIT_DELAY_FOR_RE_CONNECT_ms 1000
+const char *ssid     = "Microel5250";
+const char *password = "92021044";
 
-const char* host = "10.0.2.241";
+const char* host = "192.168.0.100";
 uint16_t port0 = 7000;
 uint16_t port1 = 7001;
 uint32_t id = 1;
@@ -14,9 +15,13 @@ uint8_t keep_alive_counter = 128;
 
 void setup (){
   Serial.begin(115200);
-  WiFi.begin(ssid, password);
-  delay(WAIT_DELAY_FOR_RE_CONNECT_ms);
 
+  Serial.println(F("Going to connect..."));
+  WiFi.begin(ssid, password);
+  while (! WiFi.isConnected()){
+    delay(WAIT_DELAY_FOR_RE_CONNECT_ms);
+    Serial.println(F("Fucked WiFi!"));
+  }
   Serial.println(WiFi.localIP());
 }
 
@@ -36,6 +41,14 @@ void agent_handshake(WiFiClient &client, uint32_t &id){
 
 void loop(){
   WiFiClient client;
+
+/*
+  while (true){
+    Serial.println(F("Fuck You!"));
+    Serial.println(WiFi.localIP());
+    delay(1000); 
+  } 
+*/  
   if (!is_connected && !client.connect(host, port1)){
     delay(WAIT_DELAY_FOR_RE_CONNECT_ms);
   }
