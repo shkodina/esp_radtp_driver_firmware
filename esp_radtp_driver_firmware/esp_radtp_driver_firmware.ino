@@ -8,7 +8,7 @@
 const char *ssid     = "Microel5250";
 const char *password = "92021044";
 
-const char* host      = "192.168.0.100";
+const char* host      = "192.168.0.101";
 uint16_t    data_port = 7000;  //  port0
 uint16_t    cmd_port  = 7001;  //  port1
 uint32_t    id        = 1;
@@ -20,23 +20,31 @@ uint32_t g_is = 0;  //  global flags holder
 
 //=================================================================
 
-void setup (){
-  Serial.begin(115200);
 
-  #ifdef DEBUG 
-    Serial.println(F("Going to connect..."));
-  #endif
-  
-  WiFi.begin(ssid, password);
-  
+bool check_wifi () {
   while (! WiFi.isConnected()){
     delay(WAIT_DELAY_FOR_RE_CONNECT_ms);
     #ifdef DEBUG
       Serial.println(F("Waiting Fucking WiFi!"));
     #endif
+    if (WiFi.isConnected())
+      Serial.println(WiFi.localIP());
   }
-  
-  Serial.println(WiFi.localIP());
+
+  return WiFi.isConnected();
+}
+
+
+//=================================================================
+
+void setup (){
+  Serial.begin(115200);
+
+  #ifdef DEBUG
+    Serial.println(F("Going to connect..."));
+  #endif
+
+  WiFi.begin(ssid, password);
 }
 
 //=================================================================
@@ -48,16 +56,16 @@ void agent_handshake(WiFiClient &drv, uint32_t &id){
     while (!drv.available());
     for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
       drv.read();
-      
-    void * id_p = &id;  
+
+    void * id_p = &id;
     for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
       drv.write(((char*)id_p)[i]);
-    
+
     while (!drv.available());
     for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
       drv.read();
     for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
-      drv.write(0);  
+      drv.write(0);
 }
 
 //=================================================================
@@ -76,8 +84,8 @@ uint32_t get_wc_from_cmd_buf(){
   uint32_t wc = 0;
   for (uint8_t i = 0; i < PKT_HEAD_LEN; i++){
     wc += (cmd_buf[i] << (8 * i));
-  }         
-  return wc;  
+  }
+  return wc;
 }
 
 void process_drv_cmd (){
@@ -93,6 +101,9 @@ void process_drv_cmd (){
   }
 
   while (!drv_cmd.connected()) {
+    #ifdef DEBUG
+      Serial.println(F("Connecting to agent..."));
+    #endif
     drv_cmd.connect(host, cmd_port);
     delay(WAIT_DELAY_FOR_RE_CONNECT_ms);
   }
@@ -100,12 +111,12 @@ void process_drv_cmd (){
    if (drv_cmd.connected() && !(is & TO_AGENT_CONNECTED)) {
     agent_handshake(drv_cmd, id);
     is |= TO_AGENT_CONNECTED;
-  }  
+  }
 
   if (drv_cmd.connected() && (is & TO_AGENT_CONNECTED)) {
     uint32_t c = 0;
     while (drv_cmd.available()) {
-      
+
       cmd_buf[c++] = drv_cmd.read();
 
       if (!drv_cmd.available()){
@@ -113,32 +124,32 @@ void process_drv_cmd (){
         #ifdef DEBUG
           for (uint32_t i = 0; i < c; i++){
             Serial.print(cmd_buf[i]);
-            Serial.print(" ");            
+            Serial.print(" ");
           }
         #endif
-        
+
         if ( c == PKT_HEAD_LEN ) {
           wc = get_wc_from_cmd_buf();
-		  is |= HEAD_CAME_BEFORE;
+          is |= HEAD_CAME_BEFORE;
           #ifdef DEBUG
-            Serial.print("HEAD ONLY : Awaiting : ");
+            Serial.print(F("HEAD ONLY : Awaiting : "));
             Serial.println(wc);
           #endif
         }else if ( c > PKT_HEAD_LEN) {
-		  	
-		  if (is & HEAD_CAME_BEFORE) {
-			c += PKT_HEAD_LEN;
-		  }else{			
+
+          if (is & HEAD_CAME_BEFORE) {
+            c += PKT_HEAD_LEN;
+          }else{
             wc = get_wc_from_cmd_buf();
-		  }
-		  
+          }
+
           if ( c != wc + PKT_HEAD_LEN ) {
             #ifdef DEBUG
               Serial.println("Bad Packet!!!");
-            #endif  
-            wc = 0;		
-            is &= ~HEAD_CAME_BEFORE;			
-            return;			  
+            #endif
+            wc = 0;
+            is &= ~HEAD_CAME_BEFORE;
+            return;
           }
 
           #ifdef DEBUG
@@ -146,28 +157,28 @@ void process_drv_cmd (){
             Serial.println(c);
           #endif
 
-		  uint32_t pos = 0;
-		  if ( ! (is & HEAD_CAME_BEFORE) ){
-			  pos = PKT_TYPE_POSITION;
-		  }
-   		  is &= ~HEAD_CAME_BEFORE;
+          uint32_t pos = 0;
+          if ( ! (is & HEAD_CAME_BEFORE) ){
+              pos = PKT_TYPE_POSITION;
+          }
+          is &= ~HEAD_CAME_BEFORE;
 
           if (cmd_buf[pos] == 254){
             #ifdef DEBUG
               Serial.println("It is KEEP_ALIVE");
             #endif
             g_is |= KEEP_ALIVE_CAME;
-			return;
+            return;
           }
-		}
-		
+        }
+
         #ifdef DEBUG
           Serial.print("Entarnce to process_drv_cmd = ");
           Serial.println(entrance);
         #endif
       }
     }
-  }  
+  }
 }
 
 //=================================================================
@@ -194,6 +205,9 @@ void process_drv_data (){
   }
 
   while (!drv_data.connected()) {
+    #ifdef DEBUG
+      Serial.println(F("Connecting to agent..."));
+    #endif
     drv_data.connect(host, data_port);
     delay(WAIT_DELAY_FOR_RE_CONNECT_ms);
   }
@@ -201,10 +215,10 @@ void process_drv_data (){
    if (drv_data.connected() && !(is & TO_AGENT_CONNECTED)) {
     agent_handshake(drv_data, id);
     is |= TO_AGENT_CONNECTED;
-  }  
+  }
 
   if (drv_data.connected() && (is & TO_AGENT_CONNECTED)) {
-    
+
     if ( g_is & KEEP_ALIVE_CAME ) {
       g_is &= ~KEEP_ALIVE_CAME;
       send_keep_alive_pkt(drv_data);
@@ -213,33 +227,35 @@ void process_drv_data (){
           Serial.println(entrance);
       #endif
     }
-    
+
     uint32_t c = 0;
     while (drv_data.available()) {
-      
+
       cmd_buf[c++] = drv_data.read();
 
       if (!drv_data.available()){
         #ifdef DEBUG
           for (uint32_t i = 0; i < c; i++){
             Serial.print(cmd_buf[i]);
-            Serial.print(" ");            
+            Serial.print(" ");
           }
         #endif
-        
- 
+
+
         #ifdef DEBUG
           Serial.print("Entarnce to process_drv_data = ");
           Serial.println(entrance);
         #endif
       }
     }
-  }    
-}  
+  }
+}
 
 
 
 void loop(){
+  check_wifi();
   process_drv_cmd();
   process_drv_data();
+
 }
