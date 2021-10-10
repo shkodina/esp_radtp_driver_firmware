@@ -21,10 +21,12 @@ WiFiClient drv_cmd;
 WiFiClient drv_data;
 #define CMD_BUF_LEN                64
 uint8_t cmd_buf [CMD_BUF_LEN];
+uint8_t cmd_buf_clen = EMPTY;
 
 
-uint32_t g_is = 0;           //    global flags holder
+uint32_t g_is = EMPTY;       //    global flags holder
 #define KEEP_ALIVE_CAME 1    //    1 << 0
+#define MULTY_PACKET    2    //    1 << 1
 
 
 #define TO_AGENT_CONNECTED 1    //    1
@@ -34,8 +36,8 @@ uint32_t g_is = 0;           //    global flags holder
 bool check_wifi () {
     while (! WiFi.isConnected()){
         delay(WAIT_DELAY_FOR_RE_CONNECT_ms);
-        #ifdef DEBUG
-            Serial.println(F("Waiting Fucking WiFi!"));
+        #ifdef DEBUG_1
+		Serial.println(F("Waiting Fucking WiFi!"));
         #endif
         if (WiFi.isConnected())
             Serial.println(WiFi.localIP());
@@ -49,8 +51,8 @@ bool check_wifi () {
 void setup (){
     Serial.begin(115200);
 
-    #ifdef DEBUG
-        Serial.println(F("Going to connect..."));
+    #ifdef DEBUG_1
+	Serial.println(F("Going to connect..."));
     #endif
 
     WiFi.begin(ssid, password);
@@ -59,8 +61,8 @@ void setup (){
 //=================================================================
 
 void agent_handshake(WiFiClient &drv, uint32_t &id){
-	#ifdef DEBUG
-		Serial.println(F("Handshaking..."));
+	#if defined DEBUG_1 || defined DEBUG_2
+	Serial.println(F("Handshaking..."));
 	#endif
 	while (!drv.available());
 	for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
@@ -80,36 +82,54 @@ void agent_handshake(WiFiClient &drv, uint32_t &id){
 //=================================================================
 
 void process_cmd (pkt_t * pkt){
-	#ifdef DEBUG
-		Serial.println(F("It is CMD"));
-		Serial.print(F("WC = "));
-		Serial.println(pkt->wc);
-		Serial.print(F("CODE = "));
-		Serial.println(pkt->cmd_event);
-		Serial.print(F("KKS = "));
-		for (uint8_t i = 0; i < pkt->kks_len; i++) 
-			Serial.print(pkt->kks[i]);
-		Serial.println();
-		for (uint8_t i = 0; i < pkt->cmd_params_count; i++){
-			Serial.print(F("Parameter ["));
-			Serial.print(i+1);
-			Serial.print(F("] = "));
-			Serial.println(pkt->cmd_params[i]);
-		}
+	#ifdef DEBUG_2
+	Serial.println(F("It is CMD"));
+	Serial.print(F("WC = "));
+	Serial.println(pkt->wc);
+	Serial.print(F("CODE = "));
+	Serial.println(pkt->cmd_event);
+	Serial.print(F("KKS = "));
+	for (uint8_t i = 0; i < pkt->kks_len; i++) 
+		Serial.print(pkt->kks[i]);
+	Serial.println();
+	for (uint8_t i = 0; i < pkt->cmd_params_count; i++){
+		Serial.print(F("Parameter ["));
+		Serial.print(i+1);
+		Serial.print(F("] = "));
+		Serial.println(pkt->cmd_params[i]);
+	}
 	#endif		
 	return;
 }
 
 //=================================================================
 
+void process_drv_cmd_pkt(pkt_t * pkt){
+	if ( pkt->type == PKT_TYPE_KEEP_ALIVE){
+
+		#ifdef DEBUG_1
+		Serial.println(F("It is KEEP_ALIVE"));
+		#endif
+
+		g_is |= KEEP_ALIVE_CAME;
+	}
+	
+	if ( pkt->type == PKT_TYPE_CMD ) {
+		process_cmd(pkt);
+	}
+
+}
+
+//=================================================================
+
 void process_drv_cmd (){
 	
-    #ifdef DEBUG
-        static uint32_t entrance = 0;
-        entrance++;
+    #ifdef DEBUG_1
+	static uint32_t entrance = EMPTY;
+	entrance++;
     #endif
 	
-    static uint32_t is = 0;
+    static uint32_t is = EMPTY;
 
     if (!drv_cmd.connected()) {
         drv_cmd.stop();
@@ -117,8 +137,8 @@ void process_drv_cmd (){
     }
 
     while (!drv_cmd.connected()) {
-        #ifdef DEBUG
-            Serial.println(F("Connecting to agent..."));
+        #ifdef DEBUG_2
+		Serial.println(F("Connecting to agent..."));
         #endif
         drv_cmd.connect(host, cmd_port);
         delay(WAIT_DELAY_FOR_RE_CONNECT_ms);
@@ -130,64 +150,72 @@ void process_drv_cmd (){
     }
 
     if (drv_cmd.connected() && (is & TO_AGENT_CONNECTED)) {
-        uint32_t c = 0;
+        uint32_t c = EMPTY;
 		
-		// TODO здесь обработать мультипакет, до чтения нового буфера (чтобы НЕ затереть)
-		// или шифтануть весь буфер и сделать вид что это был считан обычный пакет
+		if ( is & MULTY_PACKET ) {
+			c = cmd_buf_clen;
+		}
 		
-        while (drv_cmd.available()) {
-
+        while (drv_cmd.available() && !(is & MULTY_PACKET)) {
             cmd_buf[c++] = drv_cmd.read();
-
-            if (!drv_cmd.available()){
-
-                #ifdef DEBUG
-                    Serial.print(F("Entarnce to process_drv_cmd = "));
-                    Serial.println(entrance);
-					Serial.print(F("RAW Data : "));
-                    for (uint32_t i = 0; i < c; i++){
-                        Serial.print(cmd_buf[i]);
-                        Serial.print(" ");
-                    }
-					Serial.println();
-                #endif
-
-                if ( c == PKT_HEAD_LEN ) 
-				{
-					pkt.wc = from_buf_to_uint32(cmd_buf, 0);
-                    #ifdef DEBUG
-                        Serial.print(F("HEAD ONLY : Awaiting : "));
-                        Serial.println(pkt.wc);
-                    #endif
-                }
-				else if ( c > PKT_HEAD_LEN) 
-				{
-			
-					if ( parse_buf_to_pkt(cmd_buf, c, &pkt) == 0 ) {
-						#ifdef DEBUG
-							Serial.println(F("Bad Packet!!!"));
-						#endif
-						pkt_clean_up(&pkt);
-						return;			
-					}
-
-                    #ifdef DEBUG
-                        Serial.print(F("FULL PACKET. Len : "));
-                        Serial.println(c);
-                    #endif
-
-                    if ( pkt.type == PKT_TYPE_KEEP_ALIVE){
-                        #ifdef DEBUG
-                            Serial.println(F("It is KEEP_ALIVE"));
-                        #endif
-                        g_is |= KEEP_ALIVE_CAME;
-                    }else if ( pkt.type == PKT_TYPE_CMD ) {
-						process_cmd(&pkt);
-					}
-					pkt_clean_up(&pkt);
-                }
-            }
+			cmd_buf_clen = c;
         }
+
+
+		#ifdef DEBUG_1
+		if ( c > 0 ) {
+    		Serial.print(F("c = "));
+			Serial.println(c);
+			Serial.print(F("Entarnce to process_drv_cmd = "));
+			Serial.println(entrance);
+			Serial.print(F("RAW Data : "));
+			for (uint32_t i = 0; i < c; i++){
+				Serial.print(cmd_buf[i]);
+				Serial.print(" ");
+			}
+			Serial.println();
+		}
+		#endif
+
+        is &= ~MULTY_PACKET;  //  reset multy bufer.. if need it will up again in a future
+		
+		if ( c == PKT_HEAD_LEN ) 
+		{
+			pkt.wc = from_buf_to_uint32(cmd_buf, 0);
+			#ifdef DEBUG_2
+			Serial.print(F("HEAD ONLY : Awaiting : "));
+			Serial.println(pkt.wc);
+			#endif
+		}
+		else if ( c > PKT_HEAD_LEN) 
+		{
+			uint8_t parser_result = parse_buf_to_pkt(cmd_buf, c, &pkt);
+			
+			if ( parser_result == PKT_PARSER_RESULT_ERROR ) 
+			{	
+				#ifdef DEBUG_2
+				Serial.println(F("Bad Packet!!!"));
+				#endif
+				
+				pkt_clean_up(&pkt);
+				return;			
+			}
+			
+			if ( parser_result == PKT_PARSER_RESULT_MULTY_PKT ){
+				is |= MULTY_PACKET;
+				shift_buffer(cmd_buf, pkt.wc);
+				cmd_buf_clen -= pkt.wc;
+			}
+
+			#ifdef DEBUG_1
+			Serial.print(F("FULL PACKET. Len : "));
+			Serial.println(c);
+			#endif
+
+			process_drv_cmd_pkt (&pkt);
+			pkt_clean_up(&pkt);
+		}
+
     }
 }
 
@@ -203,7 +231,7 @@ void send_keep_alive_pkt (WiFiClient &drv){
 //=================================================================
 
 void process_drv_data (){
-    #ifdef DEBUG
+    #ifdef DEBUG_1
         static uint32_t entrance = 0;
         entrance++;
     #endif
@@ -214,7 +242,7 @@ void process_drv_data (){
     }
 
     while (!drv_data.connected()) {
-        #ifdef DEBUG
+        #ifdef DEBUG_2
             Serial.println(F("Connecting to agent..."));
         #endif
         drv_data.connect(host, data_port);
@@ -231,7 +259,7 @@ void process_drv_data (){
         if ( g_is & KEEP_ALIVE_CAME ) {
             g_is &= ~KEEP_ALIVE_CAME;
             send_keep_alive_pkt(drv_data);
-            #ifdef DEBUG
+            #ifdef DEBUG_1
                     Serial.print("Entarnce to process_drv_data send KEEP_ALIVE = ");
                     Serial.println(entrance);
             #endif
@@ -243,7 +271,7 @@ void process_drv_data (){
             cmd_buf[c++] = drv_data.read();
 
             if (!drv_data.available()){
-                #ifdef DEBUG
+                #ifdef DEBUG_1
                     for (uint32_t i = 0; i < c; i++){
                         Serial.print(cmd_buf[i]);
                         Serial.print(" ");
@@ -251,7 +279,7 @@ void process_drv_data (){
                 #endif
 
 
-                #ifdef DEBUG
+                #ifdef DEBUG_1
                     Serial.print("Entarnce to process_drv_data = ");
                     Serial.println(entrance);
                 #endif

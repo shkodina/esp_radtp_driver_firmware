@@ -3,7 +3,10 @@
 
 
 #define DEBUG
+#define DEBUG_1
+#define DEBUG_2
 
+#define EMPTY 0
 
 #define PKT_HEAD_LEN     4
 #define PKT_KKS_MAX_LEN  64
@@ -54,6 +57,11 @@ struct pkt_struct {
 	float mea;
 };
 typedef struct pkt_struct pkt_t;
+
+
+#define PKT_PARSER_RESULT_ERROR      0
+#define PKT_PARSER_RESULT_SINGLE_PKT 1
+#define PKT_PARSER_RESULT_MULTY_PKT  2
 
 
 #endif
