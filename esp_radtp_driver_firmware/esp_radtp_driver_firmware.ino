@@ -5,8 +5,6 @@
 
 #include "ESP8266WiFi.h"
 
-#define DEBUG
-
 const char *ssid     = "Microel5250";
 const char *password = "92021044";
 #define WAIT_DELAY_FOR_RE_CONNECT_ms 1000
@@ -81,56 +79,25 @@ void agent_handshake(WiFiClient &drv, uint32_t &id){
 
 //=================================================================
 
-bool parse_buf_to_pkt (uint8_t buf[], uint32_t buf_len, pkt_t * pkt) {
-    uint32_t p = 0;
-	
-	uint32_t  wc = from_buf_to_uint32(buf, p);
-	if ( wc == buf_len - PKT_HEAD_LEN) {  // good packet with head
-	    pkt->wc = wc;
-		p = PKT_TYPE_POSITION;
-	}else if( buf_len == pkt->wc ) {  // good packet, but head came before
-		p = 0;
-	} else { // something wrong
-		#ifdef DEBUG
-			Serial.println(F("...something wrong..."));
-		#endif	
-		// TODO оказывается может прийти несколько подряд пакетов и тогда их нужно раздерабанить и обработать последовательно
-		return false;
-	}
-	
-	pkt->type = buf[p];
-	p += PKT_TYPE_L; 
-    p += PKT_RESERVE_L;
-   	
-	uint16_t second_pkt_len = from_buf_to_uint16(buf, p);
-	p += PKT_LEN2_L;
+void process_cmd (pkt_t * pkt){
 	#ifdef DEBUG
-		Serial.print(F("PKT_LEN2 : "));
-		Serial.println(second_pkt_len);
-		Serial.print(F("buf_pos : "));
-		Serial.println(p);
-		Serial.print(F("buf[pos] : "));
-		Serial.println(buf[p]);
-	#endif
-
-	switch ( buf[p] )
-    {
-        case PKT_ATTR_CODE_KKS:
-		    p += PKT_POSITION_L;
-		    pkt->kks_len = from_buf_to_str_buf(buf, p, pkt->kks);
-			p += pkt->kks_len;
-			return true;  //  DEBUGGGGGGGGGGGGGGGGGG
-            break;
-        case PKT_ATTR_CODE_TIMESTAMP:
-            break;
-        default:
-			#ifdef DEBUG
-				Serial.print(F("Wrong Attr code : "));
-				Serial.println(buf[p]);
-			#endif
-            return false;
-    }
-    return true;
+		Serial.println(F("It is CMD"));
+		Serial.print(F("WC = "));
+		Serial.println(pkt->wc);
+		Serial.print(F("CODE = "));
+		Serial.println(pkt->cmd_event);
+		Serial.print(F("KKS = "));
+		for (uint8_t i = 0; i < pkt->kks_len; i++) 
+			Serial.print(pkt->kks[i]);
+		Serial.println();
+		for (uint8_t i = 0; i < pkt->cmd_params_count; i++){
+			Serial.print(F("Parameter ["));
+			Serial.print(i+1);
+			Serial.print(F("] = "));
+			Serial.println(pkt->cmd_params[i]);
+		}
+	#endif		
+	return;
 }
 
 //=================================================================
@@ -196,7 +163,7 @@ void process_drv_cmd (){
 				else if ( c > PKT_HEAD_LEN) 
 				{
 			
-					if ( ! parse_buf_to_pkt(cmd_buf, c, &pkt) ) {
+					if ( parse_buf_to_pkt(cmd_buf, c, &pkt) == 0 ) {
 						#ifdef DEBUG
 							Serial.println(F("Bad Packet!!!"));
 						#endif
@@ -215,17 +182,7 @@ void process_drv_cmd (){
                         #endif
                         g_is |= KEEP_ALIVE_CAME;
                     }else if ( pkt.type == PKT_TYPE_CMD ) {
-                        #ifdef DEBUG
-                            Serial.println(F("It is CMD"));
-							Serial.print(F("WC = "));
-							Serial.println(pkt.wc);
- 							Serial.print(F("CODE = "));
-							Serial.println(pkt.cmd_event);
-							Serial.print(F("KKS = "));
-							for (uint8_t i = 0; i < pkt.kks_len; i++)
-								Serial.print(pkt.kks[i]);
-                            Serial.println();
-                        #endif		
+						process_cmd(&pkt);
 					}
 					pkt_clean_up(&pkt);
                 }

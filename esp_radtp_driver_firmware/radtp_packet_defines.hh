@@ -1,6 +1,10 @@
 #ifndef RADTP_PACKET_DEFINES_FOR_ESP_PIPER
 #define RADTP_PACKET_DEFINES_FOR_ESP_PIPER
 
+
+#define DEBUG
+
+
 #define PKT_HEAD_LEN     4
 #define PKT_KKS_MAX_LEN  64
 
@@ -36,6 +40,8 @@
 #define PKT_ATTR_CODE_QUALITY     12   //  quality
 #define PKT_ATTR_CODE_QUALITY_L     1  //  length of quality
 
+
+#define CMD_MAX_PARAM_COUNT 5
 struct pkt_struct {
 	uint32_t wc;
 	uint8_t type;
@@ -43,6 +49,8 @@ struct pkt_struct {
     char kks[PKT_KKS_MAX_LEN];
 	uint8_t kks_len;
     uint16_t cmd_event;
+	uint32_t cmd_params[CMD_MAX_PARAM_COUNT];
+	uint8_t cmd_params_count;
 	float mea;
 };
 typedef struct pkt_struct pkt_t;
