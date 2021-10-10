@@ -42,6 +42,15 @@ uint8_t from_buf_to_str_buf (uint8_t buf[], uint32_t pos, char str[]) {
 
 //=================================================================
 
+uint8_t from_str_buf_to_str_buf (char buf[], uint32_t count, char str[]) {
+	for ( uint8_t i = 0; i < count; i++){
+		str[i] = buf[i];
+	}
+	return count;
+}
+
+//=================================================================
+
 void pkt_clean_up (pkt_t * pkt){
 	pkt->wc = EMPTY;
 	pkt->type = EMPTY;
@@ -59,10 +68,10 @@ void pkt_clean_up (pkt_t * pkt){
 
 //=================================================================
 
-void shift_buffer(uint8_t buf[], uint8_t shift) {
+void shift_buffer(uint8_t buf[], uint8_t shift, uint8_t buf_full_len) {
 	for (uint8_t i = 0; i < shift; i++)
 		buf[i] = buf[i+shift];
-	for (uint8_t i = shift; i < sizeof(buf); i++)
+	for (uint8_t i = shift; i < buf_full_len; i++)
 		buf[i] = EMPTY;
 }
 

@@ -17,19 +17,29 @@ uint32_t        id        = 1;
 
 
 pkt_t pkt;
+pkt_t pkt_reply;
+
 WiFiClient drv_cmd;
 WiFiClient drv_data;
-#define CMD_BUF_LEN                64
+
+#define CMD_BUF_LEN                  64
 uint8_t cmd_buf [CMD_BUF_LEN];
 uint8_t cmd_buf_clen = EMPTY;
 
+#define REPLY_BUF_LEN                64
+uint8_t reply_buf [CMD_BUF_LEN];
+uint8_t reply_buf_clen = EMPTY;
 
-uint32_t g_is = EMPTY;       //    global flags holder
-#define KEEP_ALIVE_CAME 1    //    1 << 0
-#define MULTY_PACKET    2    //    1 << 1
+uint32_t g_is = EMPTY;          //    global flags holder
+#define KEEP_ALIVE_CAME    1    //    1 << 0
+#define TIME_TO_SEND_REPLY 2    //    1 << 1
+#define TIME_TO_SEND_STATE 4    //    1 << 2
+#define TIME_TO_SEND_MEA   8    //    1 << 3
 
 
+// FLAGS for local usage is "drv_cmd" and "drv_data"
 #define TO_AGENT_CONNECTED 1    //    1
+#define MULTY_PACKET       2    //    1 << 1
 
 //=================================================================
 
@@ -81,7 +91,7 @@ void agent_handshake(WiFiClient &drv, uint32_t &id){
 
 //=================================================================
 
-void process_cmd (pkt_t * pkt){
+void process_cmd (pkt_t * pkt, pkt_t * pkt_reply){
 	#ifdef DEBUG_2
 	Serial.println(F("It is CMD"));
 	Serial.print(F("WC = "));
@@ -98,13 +108,18 @@ void process_cmd (pkt_t * pkt){
 		Serial.print(F("] = "));
 		Serial.println(pkt->cmd_params[i]);
 	}
-	#endif		
+	#endif	
+
+    pkt_clean_up(pkt_reply);
+	
+	
+	
 	return;
 }
 
 //=================================================================
 
-void process_drv_cmd_pkt(pkt_t * pkt){
+void process_drv_cmd_pkt (pkt_t * pkt, pkt_t * pkt_reply){
 	if ( pkt->type == PKT_TYPE_KEEP_ALIVE){
 
 		#ifdef DEBUG_1
@@ -115,7 +130,7 @@ void process_drv_cmd_pkt(pkt_t * pkt){
 	}
 	
 	if ( pkt->type == PKT_TYPE_CMD ) {
-		process_cmd(pkt);
+		process_cmd(pkt, pkt_reply);
 	}
 
 }
@@ -203,7 +218,7 @@ void process_drv_cmd (){
 			
 			if ( parser_result == PKT_PARSER_RESULT_MULTY_PKT ){
 				is |= MULTY_PACKET;
-				shift_buffer(cmd_buf, pkt.wc);
+				shift_buffer(cmd_buf, pkt.wc, CMD_BUF_LEN);
 				cmd_buf_clen -= pkt.wc;
 			}
 
@@ -212,7 +227,7 @@ void process_drv_cmd (){
 			Serial.println(c);
 			#endif
 
-			process_drv_cmd_pkt (&pkt);
+			process_drv_cmd_pkt (&pkt, &pkt_reply);
 			pkt_clean_up(&pkt);
 		}
 
