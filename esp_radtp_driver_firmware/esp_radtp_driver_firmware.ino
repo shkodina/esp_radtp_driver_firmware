@@ -1,7 +1,7 @@
 #include <avr/pgmspace.h>
 
-#include "radtp_packet_defines.h"
-#include "radtp_packet_utils.h"
+#include "radtp_packet_defines.hh"
+#include "radtp_packet_utils.hh"
 
 #include "ESP8266WiFi.h"
 
@@ -61,57 +61,75 @@ void setup (){
 //=================================================================
 
 void agent_handshake(WiFiClient &drv, uint32_t &id){
-        #ifdef DEBUG
-            Serial.println(F("Handshaking..."));
-        #endif
-        while (!drv.available());
-        for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
-            drv.read();
+	#ifdef DEBUG
+		Serial.println(F("Handshaking..."));
+	#endif
+	while (!drv.available());
+	for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
+		drv.read();
 
-        void * id_p = &id;
-        for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
-            drv.write(((char*)id_p)[i]);
+	void * id_p = &id;
+	for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
+		drv.write(((char*)id_p)[i]);
 
-        while (!drv.available());
-        for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
-            drv.read();
-        for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
-            drv.write(0);
+	while (!drv.available());
+	for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
+		drv.read();
+	for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
+		drv.write(0);
 }
 
 //=================================================================
 
-bool parse_buf_to_pkt (uint8_t buf, uint32_t buf_len, pkt_t & pkt) {
+bool parse_buf_to_pkt (uint8_t buf[], uint32_t buf_len, pkt_t * pkt) {
     uint32_t p = 0;
 	
 	uint32_t  wc = from_buf_to_uint32(buf, p);
-	if ( wc == c - PKT_HEAD_LEN) {  // good packet with head
+	if ( wc == buf_len - PKT_HEAD_LEN) {  // good packet with head
+	    pkt->wc = wc;
 		p = PKT_TYPE_POSITION;
-	}else if( wc == pkt.wc ) {  // good packet, but head came before
+	}else if( buf_len == pkt->wc ) {  // good packet, but head came before
 		p = 0;
 	} else { // something wrong
+		#ifdef DEBUG
+			Serial.println(F("...something wrong..."));
+		#endif	
+		// TODO оказывается может прийти несколько подряд пакетов и тогда их нужно раздерабанить и обработать последовательно
 		return false;
 	}
 	
-	pkt.type = buf[p];
-	p += PKT_POSITION_L;
+	pkt->type = buf[p];
 	p += PKT_TYPE_L; 
     p += PKT_RESERVE_L;
    	
 	uint16_t second_pkt_len = from_buf_to_uint16(buf, p);
 	p += PKT_LEN2_L;
-	
-	switch ( p )
-      {
-         case 'A':
-            uppercase_A++;
+	#ifdef DEBUG
+		Serial.print(F("PKT_LEN2 : "));
+		Serial.println(second_pkt_len);
+		Serial.print(F("buf_pos : "));
+		Serial.println(p);
+		Serial.print(F("buf[pos] : "));
+		Serial.println(buf[p]);
+	#endif
+
+	switch ( buf[p] )
+    {
+        case PKT_ATTR_CODE_KKS:
+		    p += PKT_POSITION_L;
+		    pkt->kks_len = from_buf_to_str_buf(buf, p, pkt->kks);
+			p += pkt->kks_len;
+			return true;  //  DEBUGGGGGGGGGGGGGGGGGG
             break;
-         case 'a':
-            lowercase_a++;
+        case PKT_ATTR_CODE_TIMESTAMP:
             break;
-         default:
-            other++;
-      }
+        default:
+			#ifdef DEBUG
+				Serial.print(F("Wrong Attr code : "));
+				Serial.println(buf[p]);
+			#endif
+            return false;
+    }
     return true;
 }
 
@@ -146,6 +164,10 @@ void process_drv_cmd (){
 
     if (drv_cmd.connected() && (is & TO_AGENT_CONNECTED)) {
         uint32_t c = 0;
+		
+		// TODO здесь обработать мультипакет, до чтения нового буфера (чтобы НЕ затереть)
+		// или шифтануть весь буфер и сделать вид что это был считан обычный пакет
+		
         while (drv_cmd.available()) {
 
             cmd_buf[c++] = drv_cmd.read();
@@ -174,11 +196,11 @@ void process_drv_cmd (){
 				else if ( c > PKT_HEAD_LEN) 
 				{
 			
-					if ( ! parse_buf_to_pkt(cmd_buf, c, pkt) ) {
+					if ( ! parse_buf_to_pkt(cmd_buf, c, &pkt) ) {
 						#ifdef DEBUG
 							Serial.println(F("Bad Packet!!!"));
 						#endif
-						pkt_clean_up(pkt);
+						pkt_clean_up(&pkt);
 						return;			
 					}
 
@@ -205,7 +227,7 @@ void process_drv_cmd (){
                             Serial.println();
                         #endif		
 					}
-					pkt_clean_up(pkt);
+					pkt_clean_up(&pkt);
                 }
             }
         }
