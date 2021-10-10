@@ -1,9 +1,18 @@
 #ifndef RADTP_PACKET_DEFINES_FOR_ESP_PIPER
 #define RADTP_PACKET_DEFINES_FOR_ESP_PIPER
 
-#define PKT_HEAD_LEN 4
+#define PKT_HEAD_LEN     4
+#define PKT_KKS_MAX_LEN  64
 
-#define PKT_TYPE_POSITION 4
+#define PKT_POSITION_L              1
+#define PKT_RESERVE_L               2
+#define PKT_LEN2_L                  2
+
+#define PKT_TYPE_POSITION         4
+#define PKT_TYPE_L                  1
+
+#define PKT_TYPE_CMD              5
+#define PKT_TYPE_KEEP_ALIVE       254
 
 #define PKT_ATTR_CODE_KKS         1    //  next byte contain the length of current KKS
 #define PKT_ATTR_CODE_TIMESTAMP   2
@@ -26,6 +35,17 @@
 #define PKT_ATTR_CODE_EVENT_L       2  //  length of event
 #define PKT_ATTR_CODE_QUALITY     12   //  quality
 #define PKT_ATTR_CODE_QUALITY_L     1  //  length of quality
+
+struct pkt_struct {
+	uint32_t wc;
+	uint8_t type;
+    uint32_t timestamp;
+    char kks[PKT_KKS_MAX_LEN];
+	uint8_t kks_len;
+    uint16_t cmd_event;
+	float mea;
+};
+typedef struct pkt_struct pkt_t;
 
 
 #endif
