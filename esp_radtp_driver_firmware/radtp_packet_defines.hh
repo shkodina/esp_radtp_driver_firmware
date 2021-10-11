@@ -6,7 +6,8 @@
 #define DEBUG_1
 #define DEBUG_2
 
-#define EMPTY 0
+#define EMPTY            0
+#define FROM_BEGINING    0
 
 #define PKT_HEAD_LEN     4
 #define PKT_KKS_MAX_LEN  64
@@ -19,6 +20,7 @@
 #define PKT_TYPE_L                  1
 
 #define PKT_TYPE_CMD              5
+#define PKT_TYPE_CMD_REPLY        9
 #define PKT_TYPE_KEEP_ALIVE       254
 
 #define PKT_ATTR_CODE_KKS         1    //  next byte contain the length of current KKS

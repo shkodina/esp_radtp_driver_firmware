@@ -122,9 +122,65 @@ void process_cmd (pkt_t * pkt, pkt_t * pkt_reply){
     pkt_clean_up(pkt_reply);
 	from_str_buf_to_str_buf(pkt->kks,  pkt->kks_len, pkt_reply->kks);
 	pkt_reply->kks_len = pkt->kks_len;
-	
+	pkt_reply->cmd_event = pkt->cmd_event + 1;
+	pkt_reply->timestamp = pkt->timestamp;
+	g_is |= TIME_TO_SEND_REPLY;
 	
 	return;
+}
+
+//=================================================================
+
+void pkt_ready_checker() {
+	if ( g_is & TIME_TO_SEND_REPLY) {
+		
+		uint8_t p = PKT_TYPE_POSITION;
+		
+		reply_buf[p] = PKT_TYPE_CMD_REPLY;
+		p += PKT_TYPE_L;
+		
+		p = from_uint16_to_buf(EMPTY, reply_buf, p);
+		
+		uint8_t p_len_2 = p;
+		p += PKT_LEN2_L;
+		
+		// add kks
+		reply_buf[p] = PKT_ATTR_CODE_KKS;
+		p += PKT_POSITION_L;
+		p = from_str_to_buf(pkt_reply.kks, pkt_reply.kks_len, reply_buf, p);
+		
+		// add timestamp
+		reply_buf[p] = PKT_ATTR_CODE_TIMESTAMP;
+		p += PKT_POSITION_L;
+		p = from_uint32_to_buf(pkt_reply.timestamp, reply_buf, p);
+		
+		// add cmd_event
+		reply_buf[p] = PKT_ATTR_CODE_EVENT;
+		p += PKT_POSITION_L;
+		p = from_uint16_to_buf(pkt_reply.cmd_event, reply_buf, p);
+		
+		// add PKT_LEN
+		from_uint32_to_buf(p - PKT_HEAD_LEN, reply_buf, FROM_BEGINING);
+		// add PKT_LEN 2
+		from_uint16_to_buf(p - PKT_HEAD_LEN, reply_buf, p_len_2);
+		
+		reply_buf_clen = p;
+		
+		#if defined DEBUG_1 
+		Serial.print(F("RAW CMD_REPLY PKT : "));
+		for (uint32_t i = 0; i < p; i++){
+			Serial.print(reply_buf[i]);
+			Serial.print(" ");
+		}
+		Serial.println();
+		#endif		
+	}
+	
+	
+// REPLY_BUF_LEN                64
+// uint8_t reply_buf [CMD_BUF_LEN];
+// uint8_t reply_buf_clen = EMPTY;
+	
 }
 
 //=================================================================
@@ -258,6 +314,14 @@ void send_keep_alive_pkt (WiFiClient &drv){
 
 //=================================================================
 
+void send_reply_pkt (WiFiClient &drv){
+    for ( uint8_t i = 0; i < reply_buf_clen; i++){
+            drv.write(reply_buf[i]);
+    }
+}
+
+//=================================================================
+
 void process_drv_data (){
     #ifdef DEBUG_1
         static uint32_t entrance = 0;
@@ -291,10 +355,19 @@ void process_drv_data (){
             g_is &= ~KEEP_ALIVE_CAME;
             send_keep_alive_pkt(drv_data);
             #ifdef DEBUG_1
-                    Serial.print("Entarnce to process_drv_data send KEEP_ALIVE = ");
-                    Serial.println(entrance);
+            Serial.print("Entarnce to process_drv_data send KEEP_ALIVE = ");
+            Serial.println(entrance);
             #endif
         }
+		
+		if ( g_is & TIME_TO_SEND_REPLY) {
+			g_is &= ~TIME_TO_SEND_REPLY;
+            send_reply_pkt(drv_data);
+            #ifdef DEBUG_1
+            Serial.print("Entarnce to process_drv_data send REPLY = ");
+            Serial.println(entrance);
+            #endif			
+		}
 
         uint32_t c = 0;
         while (drv_data.available()) {
@@ -323,6 +396,7 @@ void process_drv_data (){
 void loop(){
     check_wifi();
     process_drv_cmd();
+	pkt_ready_checker();
     process_drv_data();
 
 }

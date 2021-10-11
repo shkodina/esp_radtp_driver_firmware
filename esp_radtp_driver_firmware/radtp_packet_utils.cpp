@@ -13,7 +13,7 @@
 
 uint32_t from_buf_to_uint32 (uint8_t buf[], uint32_t pos) {
     uint32_t v = 0;
-    for (uint8_t i = 0; i < 4; i++) {
+    for (uint8_t i = FROM_BEGINING; i < 4; i++) {
       v += (buf[pos + i] << (8 * i));
     }
     return v;
@@ -23,7 +23,7 @@ uint32_t from_buf_to_uint32 (uint8_t buf[], uint32_t pos) {
 
 uint16_t from_buf_to_uint16 (uint8_t buf[], uint32_t pos) {
     uint16_t v = 0;
-    for (uint8_t i = 0; i < 2; i++) {
+    for (uint8_t i = FROM_BEGINING; i < 2; i++) {
       v += (buf[pos + i] << (8 * i));
     }
     return v;
@@ -31,10 +31,30 @@ uint16_t from_buf_to_uint16 (uint8_t buf[], uint32_t pos) {
 
 //=================================================================
 
-uint8_t from_buf_to_str_buf (uint8_t buf[], uint32_t pos, char str[]) {
+uint32_t from_uint16_to_buf  (uint16_t value, uint8_t buf[], uint32_t pos) {                   //  return new position for buffer pointer
+  for ( uint8_t i = 0; i < 2; i++){
+    buf[pos + i] = value;
+    value = value >> 8;
+  }
+  return pos + 2;
+}
+
+//================================================================
+
+uint32_t from_uint32_to_buf  (uint32_t value, uint8_t buf[], uint32_t pos) {                   //  return new position for buffer pointer
+  for ( uint8_t i = 0; i < 4; i++){
+    buf[pos + i] = value;
+    value = value >> 8;
+  }
+  return pos + 4;
+}
+
+//=================================================================
+
+uint8_t from_buf_to_str (uint8_t buf[], uint32_t pos, char str[]) {
 	uint8_t str_len = buf[pos];
 	pos++;
-	for ( uint8_t i = 0; i < str_len; i++){
+	for ( uint8_t i = FROM_BEGINING; i < str_len; i++){
 		str[i] = buf[pos + i];
 	}
 	return str_len;
@@ -42,8 +62,18 @@ uint8_t from_buf_to_str_buf (uint8_t buf[], uint32_t pos, char str[]) {
 
 //=================================================================
 
+uint32_t  from_str_to_buf (char str[], uint8_t str_len, uint8_t buf[], uint32_t buf_pos){
+	buf[buf_pos++] = str_len;
+	for (uint8_t i = FROM_BEGINING; i < str_len; i++){
+		buf[buf_pos + i] = str[i];
+	}
+	return buf_pos + str_len;
+}
+
+//=================================================================
+
 uint8_t from_str_buf_to_str_buf (char buf[], uint32_t count, char str[]) {
-	for ( uint8_t i = 0; i < count; i++){
+	for ( uint8_t i = FROM_BEGINING; i < count; i++){
 		str[i] = buf[i];
 	}
 	return count;
@@ -55,13 +85,13 @@ void pkt_clean_up (pkt_t * pkt){
 	pkt->wc = EMPTY;
 	pkt->type = EMPTY;
     pkt->timestamp = EMPTY;
-	for (uint8_t i = 0; i < PKT_KKS_MAX_LEN; i++)
+	for (uint8_t i = FROM_BEGINING; i < PKT_KKS_MAX_LEN; i++)
 		pkt->kks[i] = EMPTY;
 	pkt->kks_len = EMPTY;
     pkt->cmd_event = EMPTY;
 	pkt->mea = EMPTY;
 	
-	for (uint8_t i = 0; i < CMD_MAX_PARAM_COUNT; i++)
+	for (uint8_t i = FROM_BEGINING; i < CMD_MAX_PARAM_COUNT; i++)
 		pkt->cmd_params[i] = EMPTY;
 	pkt->cmd_params_count = EMPTY;
 }
@@ -69,7 +99,7 @@ void pkt_clean_up (pkt_t * pkt){
 //=================================================================
 
 void shift_buffer(uint8_t buf[], uint8_t shift, uint8_t buf_full_len) {
-	for (uint8_t i = 0; i < shift; i++)
+	for (uint8_t i = FROM_BEGINING; i < shift; i++)
 		buf[i] = buf[i+shift];
 	for (uint8_t i = shift; i < buf_full_len; i++)
 		buf[i] = EMPTY;
@@ -116,7 +146,7 @@ uint8_t parse_buf_to_pkt (uint8_t buf[], uint32_t buf_len, pkt_t * pkt) {  // re
 		{
 			case PKT_ATTR_CODE_KKS:
 				current_position += PKT_POSITION_L;
-				pkt->kks_len = from_buf_to_str_buf(buf, current_position, pkt->kks);
+				pkt->kks_len = from_buf_to_str(buf, current_position, pkt->kks);
 				current_position += pkt->kks_len;
 				current_position += 1;
 				break;
