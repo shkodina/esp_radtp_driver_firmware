@@ -70,11 +70,15 @@ void setup (){
 
 //=================================================================
 
-void agent_handshake(WiFiClient &drv, uint32_t &id){
+bool agent_handshake(WiFiClient &drv, uint32_t &id){
+	uint16_t wait = 65535;
 	#if defined DEBUG_1 || defined DEBUG_2
 	Serial.println(F("Handshaking..."));
 	#endif
-	while (!drv.available());
+
+	while (!drv.available() && wait) wait--;
+	if (! wait ) return false;
+	
 	for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
 		drv.read();
 
@@ -82,11 +86,16 @@ void agent_handshake(WiFiClient &drv, uint32_t &id){
 	for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
 		drv.write(((char*)id_p)[i]);
 
-	while (!drv.available());
+	wait = 65535;
+	while (!drv.available() && wait) wait--;
+	if (! wait ) return false;
+
 	for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
 		drv.read();
 	for (uint8_t i = 0; i < PKT_HEAD_LEN; i++)
 		drv.write(0);
+	
+	return true;
 }
 
 //=================================================================
@@ -111,7 +120,8 @@ void process_cmd (pkt_t * pkt, pkt_t * pkt_reply){
 	#endif	
 
     pkt_clean_up(pkt_reply);
-	
+	from_str_buf_to_str_buf(pkt->kks,  pkt->kks_len, pkt_reply->kks);
+	pkt_reply->kks_len = pkt->kks_len;
 	
 	
 	return;
@@ -160,7 +170,10 @@ void process_drv_cmd (){
     }
 
      if (drv_cmd.connected() && !(is & TO_AGENT_CONNECTED)) {
-        agent_handshake(drv_cmd, id);
+        if (!agent_handshake(drv_cmd, id)){
+			drv_cmd.stop();
+			return;
+		}
         is |= TO_AGENT_CONNECTED;
     }
 
@@ -265,7 +278,10 @@ void process_drv_data (){
     }
 
      if (drv_data.connected() && !(is & TO_AGENT_CONNECTED)) {
-        agent_handshake(drv_data, id);
+        if (!agent_handshake(drv_data, id)){
+			drv_data.stop();
+			return;
+		}
         is |= TO_AGENT_CONNECTED;
     }
 
