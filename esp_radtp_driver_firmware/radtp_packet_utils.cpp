@@ -232,3 +232,48 @@ uint8_t parse_buf_to_pkt (uint8_t buf[], uint32_t buf_len, pkt_t * pkt) {  // re
 	}
     return return_result;
 }
+
+//=============================================================================
+
+uint32_t pkt_build_reply_buffer_for_send(pkt_t * pkt_reply, uint8_t reply_buf[]) {
+	uint8_t p = PKT_TYPE_POSITION;
+	
+	reply_buf[p] = PKT_TYPE_CMD_REPLY;
+	p += PKT_TYPE_L;
+	
+	p = from_uint16_to_buf(EMPTY, reply_buf, p);
+	
+	uint8_t p_len_2 = p;
+	p += PKT_LEN2_L;
+	
+	// add kks
+	reply_buf[p] = PKT_ATTR_CODE_KKS;
+	p += PKT_POSITION_L;
+	p = from_str_to_buf(pkt_reply->kks, pkt_reply->kks_len, reply_buf, p);
+	
+	// add timestamp
+	reply_buf[p] = PKT_ATTR_CODE_TIMESTAMP;
+	p += PKT_POSITION_L;
+	p = from_uint32_to_buf(pkt_reply->timestamp, reply_buf, p);
+	
+	// add cmd_event
+	reply_buf[p] = PKT_ATTR_CODE_EVENT;
+	p += PKT_POSITION_L;
+	p = from_uint16_to_buf(pkt_reply->cmd_event, reply_buf, p);
+	
+	// add PKT_LEN
+	from_uint32_to_buf(p - PKT_HEAD_LEN, reply_buf, FROM_BEGINING);
+	// add PKT_LEN 2
+	from_uint16_to_buf(p - PKT_HEAD_LEN, reply_buf, p_len_2);
+	
+	#if defined DEBUG_1 
+	Serial.print(F("RAW CMD_REPLY PKT : "));
+	for (uint32_t i = 0; i < p; i++){
+		Serial.print(reply_buf[i]);
+		Serial.print(" ");
+	}
+	Serial.println();
+	#endif		
+	
+	return p;
+}
