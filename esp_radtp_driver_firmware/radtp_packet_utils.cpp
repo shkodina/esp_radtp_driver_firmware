@@ -267,7 +267,7 @@ uint32_t pkt_build_reply_buffer_for_send(pkt_t * pkt_reply, uint8_t reply_buf[])
 	from_uint16_to_buf(p - PKT_HEAD_LEN, reply_buf, p_len_2);
 	
 	#if defined DEBUG_1 
-	Serial.print(F("RAW CMD_REPLY PKT : "));
+	Serial.print(F("RAW  CMD_REPLY  PKT : "));
 	for (uint32_t i = 0; i < p; i++){
 		Serial.print(reply_buf[i]);
 		Serial.print(" ");
@@ -312,9 +312,54 @@ uint32_t pkt_build_event_buffer_for_send(pkt_t * pkt_event, uint8_t event_buf[])
 	from_uint16_to_buf(p - PKT_HEAD_LEN, event_buf, p_len_2);
 	
 	#if defined DEBUG_1 
-	Serial.print(F("RAW EVENT PKT : "));
+	Serial.print(F("RAW  EVENT  PKT : "));
 	for (uint32_t i = 0; i < p; i++){
 		Serial.print(event_buf[i]);
+		Serial.print(" ");
+	}
+	Serial.println();
+	#endif		
+	
+	return p;
+}
+
+//=============================================================================
+
+uint32_t pkt_build_mea_buffer_for_send(pkt_t * pkt_mea, uint8_t mea_buf[]) {
+	uint8_t p = PKT_TYPE_POSITION;
+	
+	mea_buf[p] = PKT_TYPE_MEA;
+	p += PKT_TYPE_L;
+	
+	p = from_uint16_to_buf(EMPTY, mea_buf, p);
+	
+	uint8_t p_len_2 = p;
+	p += PKT_LEN2_L;
+	
+	// add kks
+	mea_buf[p] = PKT_ATTR_CODE_KKS;
+	p += PKT_POSITION_L;
+	p = from_str_to_buf(pkt_mea->kks, pkt_mea->kks_len, mea_buf, p);
+	
+	// add timestamp
+	mea_buf[p] = PKT_ATTR_CODE_TIMESTAMP;
+	p += PKT_POSITION_L;
+	p = from_uint32_to_buf(pkt_mea->timestamp, mea_buf, p);
+	
+	// add measurement
+	mea_buf[p] = PKT_ATTR_CODE_LValue;
+	p += PKT_POSITION_L;
+	p = from_uint32_to_buf(pkt_mea->mea, mea_buf, p);
+	
+	// add PKT_LEN
+	from_uint32_to_buf(p - PKT_HEAD_LEN, mea_buf, FROM_BEGINING);
+	// add PKT_LEN 2
+	from_uint16_to_buf(p - PKT_HEAD_LEN, mea_buf, p_len_2);
+	
+	#if defined DEBUG_1 
+	Serial.print(F("RAW  MEASUREMENT  PKT : "));
+	for (uint32_t i = 0; i < p; i++){
+		Serial.print(mea_buf[i]);
 		Serial.print(" ");
 	}
 	Serial.println();

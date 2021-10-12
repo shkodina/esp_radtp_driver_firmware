@@ -1,5 +1,7 @@
 #include <avr/pgmspace.h>
 
+#define IMITATION
+
 #include "radtp_packet_defines.hh"
 #include "radtp_packet_utils.hh"
 
@@ -28,7 +30,7 @@ uint8_t cmd_buf [CMD_BUF_LEN];
 uint8_t cmd_buf_clen = EMPTY;
 
 pkt_t pkt_reply;
-#define REPLY_BUF_LEN                64
+#define REPLY_BUF_LEN                32
 uint8_t reply_buf [CMD_BUF_LEN];
 uint8_t reply_buf_clen = EMPTY;
 
@@ -36,6 +38,11 @@ pkt_t pkt_event;
 #define EVENT_BUF_LEN                32
 uint8_t event_buf [EVENT_BUF_LEN];
 uint8_t event_buf_clen = EMPTY;
+
+pkt_t pkt_mea;
+#define MEA_BUF_LEN                32
+uint8_t mea_buf [MEA_BUF_LEN];
+uint8_t mea_buf_clen = EMPTY;
 
 uint32_t g_is = EMPTY;          //    global flags holder
 #define KEEP_ALIVE_CAME    1    //    1 << 0
@@ -107,7 +114,8 @@ bool agent_handshake(WiFiClient &drv, uint32_t &id){
 
 //=================================================================
 
-void check_pin_states () {
+void check_pin_event () {
+	#ifdef IMITATION
 	static uint32_t c = 0;
 	static uint16_t evt = 10;
 	
@@ -120,7 +128,28 @@ void check_pin_states () {
 		g_is |= TIME_TO_SEND_EVENT;
 		c = 0;
 	}
+	#endif
+	return;
+}
+
+//=================================================================
+
+void check_pin_mea () {
+	#ifdef IMITATION
+	static uint32_t c = 0;
+	static uint16_t mea = 10;
 	
+	if ( c++ == 200000) {
+		from_str_buf_to_str_buf(this_kks, this_kks_len, pkt_mea.kks);
+		pkt_mea.kks_len = this_kks_len;
+		pkt_mea.timestamp = this_timestamp;
+		pkt_mea.mea = mea++;
+		
+		g_is |= TIME_TO_SEND_MEA;
+		c = 0;
+	}
+	#endif
+	return;
 }
 
 //=================================================================
@@ -163,6 +192,10 @@ void pkt_ready_checker() {
 	
 	if ( g_is & TIME_TO_SEND_EVENT) {
 		event_buf_clen = pkt_build_event_buffer_for_send (&pkt_event, event_buf);	
+	}
+	
+	if ( g_is & TIME_TO_SEND_MEA) {
+		mea_buf_clen = pkt_build_mea_buffer_for_send (&pkt_mea, mea_buf);	
 	}
 }
 
@@ -315,6 +348,14 @@ void send_event_pkt (WiFiClient &drv){
 
 //=================================================================
 
+void send_mea_pkt (WiFiClient &drv){
+    for ( uint8_t i = 0; i < mea_buf_clen; i++){
+            drv.write(mea_buf[i]);
+    }
+}
+
+//=================================================================
+
 void process_drv_data (){
     #ifdef DEBUG_1
         static uint32_t entrance = 0;
@@ -371,6 +412,15 @@ void process_drv_data (){
             #endif			
 		}
 
+		if ( g_is & TIME_TO_SEND_MEA) {
+			g_is &= ~TIME_TO_SEND_MEA;
+            send_mea_pkt(drv_data);
+            #ifdef DEBUG_1
+            Serial.print("Entarnce to process_drv_data send MEASUREMENT = ");
+            Serial.println(entrance);
+            #endif			
+		}
+
         uint32_t c = 0;
         while (drv_data.available()) {
 
@@ -394,12 +444,18 @@ void process_drv_data (){
     }
 }
 
+//=================================================================
 
-void loop(){
+void loop()
+{
     check_wifi();
+	
     process_drv_cmd();
-	check_pin_states();
+	
+	check_pin_event();
+	check_pin_mea();
+	
 	pkt_ready_checker();
+	
     process_drv_data();
-
 }

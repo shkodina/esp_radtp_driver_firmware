@@ -19,6 +19,7 @@
 #define PKT_TYPE_POSITION         4
 #define PKT_TYPE_L                  1
 
+#define PKT_TYPE_MEA              1
 #define PKT_TYPE_EVENT            3
 #define PKT_TYPE_CMD              5
 #define PKT_TYPE_CMD_REPLY        9
@@ -57,7 +58,7 @@ struct pkt_struct {
     uint16_t cmd_event;
 	uint32_t cmd_params[CMD_MAX_PARAM_COUNT];
 	uint8_t cmd_params_count;
-	float mea;
+	uint32_t mea;
 };
 typedef struct pkt_struct pkt_t;
 
