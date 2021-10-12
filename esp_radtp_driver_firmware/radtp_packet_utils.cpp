@@ -277,3 +277,48 @@ uint32_t pkt_build_reply_buffer_for_send(pkt_t * pkt_reply, uint8_t reply_buf[])
 	
 	return p;
 }
+
+//=============================================================================
+
+uint32_t pkt_build_event_buffer_for_send(pkt_t * pkt_event, uint8_t event_buf[]) {
+	uint8_t p = PKT_TYPE_POSITION;
+	
+	event_buf[p] = PKT_TYPE_EVENT;
+	p += PKT_TYPE_L;
+	
+	p = from_uint16_to_buf(EMPTY, event_buf, p);
+	
+	uint8_t p_len_2 = p;
+	p += PKT_LEN2_L;
+	
+	// add kks
+	event_buf[p] = PKT_ATTR_CODE_KKS;
+	p += PKT_POSITION_L;
+	p = from_str_to_buf(pkt_event->kks, pkt_event->kks_len, event_buf, p);
+	
+	// add timestamp
+	event_buf[p] = PKT_ATTR_CODE_TIMESTAMP;
+	p += PKT_POSITION_L;
+	p = from_uint32_to_buf(pkt_event->timestamp, event_buf, p);
+	
+	// add cmd_event
+	event_buf[p] = PKT_ATTR_CODE_EVENT;
+	p += PKT_POSITION_L;
+	p = from_uint16_to_buf(pkt_event->cmd_event, event_buf, p);
+	
+	// add PKT_LEN
+	from_uint32_to_buf(p - PKT_HEAD_LEN, event_buf, FROM_BEGINING);
+	// add PKT_LEN 2
+	from_uint16_to_buf(p - PKT_HEAD_LEN, event_buf, p_len_2);
+	
+	#if defined DEBUG_1 
+	Serial.print(F("RAW EVENT PKT : "));
+	for (uint32_t i = 0; i < p; i++){
+		Serial.print(event_buf[i]);
+		Serial.print(" ");
+	}
+	Serial.println();
+	#endif		
+	
+	return p;
+}

@@ -19,6 +19,7 @@
 #define PKT_TYPE_POSITION         4
 #define PKT_TYPE_L                  1
 
+#define PKT_TYPE_EVENT            3
 #define PKT_TYPE_CMD              5
 #define PKT_TYPE_CMD_REPLY        9
 #define PKT_TYPE_KEEP_ALIVE       254

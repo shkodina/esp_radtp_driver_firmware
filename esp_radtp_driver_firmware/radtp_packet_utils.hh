@@ -17,4 +17,5 @@ uint8_t  parse_buf_to_pkt (uint8_t buf[], uint32_t buf_len, pkt_t * pkt);  // re
 void     shift_buffer (uint8_t buf[], uint8_t shift, uint8_t buf_full_len);
 
 uint32_t pkt_build_reply_buffer_for_send(pkt_t * pkt_reply, uint8_t reply_buf[]);
+uint32_t pkt_build_event_buffer_for_send(pkt_t * pkt_event, uint8_t event_buf[]);
 #endif

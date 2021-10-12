@@ -9,31 +9,38 @@ const char *ssid     = "Microel5250";
 const char *password = "92021044";
 #define WAIT_DELAY_FOR_RE_CONNECT_ms 1000
 
+//har this_kks[5] = {'E','S','P','0','1'};
+char this_kks[] = "ESP01";
+uint8_t this_kks_len = 5;
+uint32_t this_timestamp = 0;
 
 const char* host          = "192.168.0.101";
 uint16_t        data_port = 7000;    //    port0
 uint16_t        cmd_port  = 7001;    //    port1
 uint32_t        id        = 1;
 
-
-pkt_t pkt;
-pkt_t pkt_reply;
-
 WiFiClient drv_cmd;
 WiFiClient drv_data;
 
+pkt_t pkt;
 #define CMD_BUF_LEN                  64
 uint8_t cmd_buf [CMD_BUF_LEN];
 uint8_t cmd_buf_clen = EMPTY;
 
+pkt_t pkt_reply;
 #define REPLY_BUF_LEN                64
 uint8_t reply_buf [CMD_BUF_LEN];
 uint8_t reply_buf_clen = EMPTY;
 
+pkt_t pkt_event;
+#define EVENT_BUF_LEN                32
+uint8_t event_buf [EVENT_BUF_LEN];
+uint8_t event_buf_clen = EMPTY;
+
 uint32_t g_is = EMPTY;          //    global flags holder
 #define KEEP_ALIVE_CAME    1    //    1 << 0
 #define TIME_TO_SEND_REPLY 2    //    1 << 1
-#define TIME_TO_SEND_STATE 4    //    1 << 2
+#define TIME_TO_SEND_EVENT 4    //    1 << 2
 #define TIME_TO_SEND_MEA   8    //    1 << 3
 
 
@@ -100,6 +107,24 @@ bool agent_handshake(WiFiClient &drv, uint32_t &id){
 
 //=================================================================
 
+void check_pin_states () {
+	static uint32_t c = 0;
+	static uint16_t evt = 10;
+	
+	if ( c++ == 400000) {
+		from_str_buf_to_str_buf(this_kks, this_kks_len, pkt_event.kks);
+		pkt_event.kks_len = this_kks_len;
+		pkt_event.timestamp = this_timestamp;
+		pkt_event.cmd_event = evt++;
+		
+		g_is |= TIME_TO_SEND_EVENT;
+		c = 0;
+	}
+	
+}
+
+//=================================================================
+
 void process_cmd (pkt_t * pkt, pkt_t * pkt_reply){
 	#ifdef DEBUG_2
 	Serial.println(F("It is CMD"));
@@ -136,8 +161,9 @@ void pkt_ready_checker() {
 		reply_buf_clen = pkt_build_reply_buffer_for_send (&pkt_reply, reply_buf);	
 	}
 	
-	
-	
+	if ( g_is & TIME_TO_SEND_EVENT) {
+		event_buf_clen = pkt_build_event_buffer_for_send (&pkt_event, event_buf);	
+	}
 }
 
 //=================================================================
@@ -148,6 +174,8 @@ void process_drv_cmd_pkt (pkt_t * pkt, pkt_t * pkt_reply){
 		#ifdef DEBUG_1
 		Serial.println(F("It is KEEP_ALIVE"));
 		#endif
+		
+		this_timestamp = pkt->timestamp;
 
 		g_is |= KEEP_ALIVE_CAME;
 	}
@@ -279,6 +307,14 @@ void send_reply_pkt (WiFiClient &drv){
 
 //=================================================================
 
+void send_event_pkt (WiFiClient &drv){
+    for ( uint8_t i = 0; i < event_buf_clen; i++){
+            drv.write(event_buf[i]);
+    }
+}
+
+//=================================================================
+
 void process_drv_data (){
     #ifdef DEBUG_1
         static uint32_t entrance = 0;
@@ -326,6 +362,15 @@ void process_drv_data (){
             #endif			
 		}
 
+		if ( g_is & TIME_TO_SEND_EVENT) {
+			g_is &= ~TIME_TO_SEND_EVENT;
+            send_event_pkt(drv_data);
+            #ifdef DEBUG_1
+            Serial.print("Entarnce to process_drv_data send EVENT = ");
+            Serial.println(entrance);
+            #endif			
+		}
+
         uint32_t c = 0;
         while (drv_data.available()) {
 
@@ -353,6 +398,7 @@ void process_drv_data (){
 void loop(){
     check_wifi();
     process_drv_cmd();
+	check_pin_states();
 	pkt_ready_checker();
     process_drv_data();
 
