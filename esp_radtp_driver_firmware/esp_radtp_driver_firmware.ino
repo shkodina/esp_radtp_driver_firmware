@@ -1,6 +1,12 @@
 #include <avr/pgmspace.h>
 
-#define IMITATION
+
+
+
+//#define IMITATION
+#define FOR_TEST
+
+
 
 #include "radtp_packet_defines.hh"
 #include "radtp_packet_utils.hh"
@@ -56,6 +62,36 @@ uint32_t g_is = EMPTY;          //    global flags holder
 #define MULTY_PACKET       2    //    1 << 1
 
 //=================================================================
+//
+//  E S P   Based   defines
+//
+//=================================================================
+
+#define D1 5
+#define D5 14
+
+
+
+#ifdef FOR_TEST
+
+#define PIN_FOR_READ    D1
+#define PIN_FOR_WRITE   D5
+
+#endif
+
+
+
+//=================================================================
+
+void setup_pinout () {
+	#ifdef FOR_TEST
+    pinMode(PIN_FOR_READ, INPUT);
+    pinMode(PIN_FOR_WRITE, OUTPUT);
+	#endif
+	return;
+}
+
+//=================================================================
 
 bool check_wifi () {
     while (! WiFi.isConnected()){
@@ -73,6 +109,8 @@ bool check_wifi () {
 //=================================================================
 
 void setup (){
+	setup_pinout();
+	
     Serial.begin(115200);
 
     #ifdef DEBUG_1
@@ -129,6 +167,23 @@ void check_pin_event () {
 		c = 0;
 	}
 	#endif
+	
+	
+	#ifdef FOR_TEST
+	static uint8_t last_state = 0;
+	uint8_t cur_state = digitalRead(PIN_FOR_READ);
+	if (last_state != cur_state) {
+		last_state = cur_state;
+		
+		from_str_buf_to_str_buf(this_kks, this_kks_len, pkt_event.kks);
+		pkt_event.kks_len = this_kks_len;
+		pkt_event.timestamp = this_timestamp;
+		pkt_event.cmd_event = 600 + cur_state;
+		
+		g_is |= TIME_TO_SEND_EVENT;
+	}
+	
+	#endif
 	return;
 }
 
@@ -180,6 +235,16 @@ void process_cmd (pkt_t * pkt, pkt_t * pkt_reply){
 	pkt_reply->timestamp = pkt->timestamp;
 	g_is |= TIME_TO_SEND_REPLY;
 	
+	#ifdef FOR_TEST
+	if ( pkt->cmd_event == 100 ) {
+		digitalWrite(PIN_FOR_WRITE, LOW);
+	}else if ( pkt->cmd_event == 110 ) {
+		digitalWrite(PIN_FOR_WRITE, HIGH);
+	}else {
+		pkt_reply->cmd_event = pkt->cmd_event + 2;
+	}
+	
+	#endif
 	return;
 }
 
